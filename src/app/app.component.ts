@@ -1,6 +1,8 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import {
   combineLatest,
+  debounce,
+  debounceTime,
   filter,
   forkJoin,
   map,
@@ -8,6 +10,7 @@ import {
   Subject,
   Subscription,
   switchMap,
+  timer,
 } from 'rxjs';
 import { MockDataService } from './mock-data.service';
 
@@ -34,29 +37,43 @@ export class AppComponent implements OnInit, OnDestroy {
     // 1.1. Add functionality to changeCharactersInput method. Changes searchTermByCharacters Subject value on input change.
     const inputValue: string = element.target.value;
     // YOUR CODE STARTS HERE
-
+    this.searchTermByCharacters.next(inputValue);
     // YOUR CODE ENDS HERE
   }
 
   initCharacterEvents(): void {
     // 1.2. Add API call on each user input. Use mockDataService.getCharacters - to make get request.
+    //this.searchTermByCharacters.subscribe((val) => this.mockDataService.getCharacters(val));
+    this.charactersResults$ = this.searchTermByCharacters
+        .pipe        
+        ( 
+          filter(value=>value.length>3), 
+          debounceTime(1000),
+          switchMap(x=>this.mockDataService.getCharacters(x))
+        );
 
     // 2. Since we don't want to spam our service add filter by input value and do not call API until a user enters at least 3 chars.
 
     // 3. Add debounce to prevent API calls until user stop typing.
 
-    this.charactersResults$ = this.searchTermByCharacters
-        .pipe
+    
         // YOUR CODE STARTS HERE
 
         // YOUR CODE ENDS HERE
-        ();
+        
   }
 
   loadCharactersAndPlanet(): void {
     // 4. On clicking the button 'Load Characters And Planets', it is necessary to process two requests and combine the results of both requests into one result array. As a result, a list with the names of the characters and the names of the planets is displayed on the screen.
     // Your code should looks like this: this.planetAndCharactersResults$ = /* Your code */
     // YOUR CODE STARTS HERE
+    const planetService = this.mockDataService.getPlanets();
+    const characterService = this.mockDataService.getCharacters();
+    this.planetAndCharactersResults$ =
+      forkJoin(planetService, characterService)
+        .pipe(
+          map(([planets, characters]) => {return [...planets, ...characters]})
+        );
     // YOUR CODE ENDS HERE
   }
 
@@ -67,12 +84,19 @@ export class AppComponent implements OnInit, OnDestroy {
     - Subscribe to changes
     - Check the received value using the areAllValuesTrue function and pass them to the isLoading variable. */
     // YOUR CODE STARTS HERE
+    const charactersLoader$ = this.mockDataService.getCharactersLoader();
+    const planetsLoader$ = this.mockDataService.getPlanetLoader();
+    const combinedData =  combineLatest([charactersLoader$, planetsLoader$]).subscribe(([charactersLoader, planetsLoader]) => {
+        this.isLoading = this.areAllValuesTrue([charactersLoader, planetsLoader]);
+      });
+      this.subscriptions.push(combinedData);
     // YOUR CODE ENDS HERE
   }
 
   ngOnDestroy(): void {
     // 5.2 Unsubscribe from all subscriptions
     // YOUR CODE STARTS HERE
+    this.searchTermByCharacters.unsubscribe();
     // YOUR CODE ENDS HERE
   }
 
